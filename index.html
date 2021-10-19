@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>Google Maps Multiple Markers</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+</head>
+<style>
+    body,
+    html {
+        height: 100%;
+        width: 100%;
+        padding: 0px;
+        margin: 0px;
+    }
+
+    div#content {
+        width: 100%;
+        height: 100%;
+    }
+
+    #modal {
+        padding: 10px;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+        background-color: white;
+        display: none;
+    }
+
+    .close {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        float: right;
+    }
+
+    .close:after {
+        display: inline-block;
+        content: "\00d7";
+        /* This will render the 'X' */
+    }
+
+    .item {
+        padding: 2px;
+    }
+
+    #searchTextField {
+        position: absolute;
+        top: 40px;
+        margin: 15px;
+        font-size: 1.5em;
+        z-index: 1000;
+    }
+</style>
+
+<body>
+    <div id="modal">
+        <div class="close" id="close"></div>
+        <div id="modalContent"></div>
+    </div>
+    <input id="searchTextField" type="text" size="25">
+    <div id="map" style="width: 100%; height: 100%;"></div>
+    <script type="text/javascript">
+
+        let circle;
+
+        const mainData = [];
+        let map;
+        let setCenter = true;
+        let currentPoly;
+        const close = document.getElementById("close")
+        const modal = document.getElementById("modal")
+        const modalContent = document.getElementById("modalContent")
+        const drivers = [];
+        const driverNames = [];
+        const allMarkers = [];
+        const driverMarkers = [];
+        const markersInPoly = [];
+        let counts = {};
+        const colorArray = ['FF6633', 'FFB399', 'FF33FF', 'FFFF99', '00B3E6',
+            'E6B333', '3366E6', '999966', '99FF99', 'B34D4D',
+            '80B300', '809900', 'E6B3B3', '6680B3', '66991A',
+            'FF99E6', 'CCFF1A', 'FF1A66', 'E6331A', '33FFCC',
+            '66994D', 'B366CC', '4D8000', 'B33300', 'CC80CC',
+            '66664D', '991AFF', 'E666FF', '4DB3FF', '1AB399',
+            'E666B3', '33991A', 'CC9999', 'B3B31A', '00E680',
+            '4D8066', '809980', 'E6FF80', '1AFF33', '999933',
+            'FF3380', 'CCCC00', '66E64D', '4D80CC', '9900B3',
+            'E64D66', '4DB380', 'FF4D4D', '99E6E6', '6666FF'];
+
+        function initMap() {
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 10,
+                center: new google.maps.LatLng(-33.92, 151.25),
+                mapTypeId: google.maps.MapTypeId.ROADMAP
+            });
+            var infowindow = new google.maps.InfoWindow();
+            var marker, i;
+
+            const geocoder = new google.maps.Geocoder()
+
+            const drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: false,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: [
+                        // google.maps.drawing.OverlayType.CIRCLE,
+                        google.maps.drawing.OverlayType.POLYGON,
+                        // google.maps.drawing.OverlayType.POLYLINE,
+                        //google.maps.drawing.OverlayType.RECTANGLE,
+                    ],
+                },
+
+            });
+            drawingManager.setMap(map);
+            drawingManager.setDrawingMode(null);
+
+            d3.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vT9gnJPZ6FA-xyD_V0sd18PD8s8QojdRxjn8Jebmf4WQWh6e-rD6QBVIMnApjKUlbuH3foaTiq7vLhV/pub?output=csv")
+                .then(i => {
+                    console.log('i', i);
+                    mainData.push(...i)
+                })
+
+
+
+            function addMarker(pin, color) {
+
+                /*
+                var pinColor = colorArray[driverNames.indexOf(pin.driver)];
+
+                if (pin.driver === undefined || pin.driver === "NULL" || pin.driver === null) {
+                    pinColor = "000000"
+                }
+
+                if (color) {
+                    pinColor = color;
+                }
+
+                var pinImage = new google.maps.MarkerImage("http://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|" + pinColor,
+                    new google.maps.Size(21, 34),
+                    new google.maps.Point(0, 0),
+                    new google.maps.Point(10, 34));
+                */
+
+                const marker = new google.maps.Marker({
+                    position: { lng: +pin.Longitude, lat: +pin.Latitute },
+                    map: map,
+                    //options: pin,
+                    //icon: pinImage,
+                });
+
+                marker.addListener('mouseover', function () {
+                });
+                marker.addListener('mouseout', function () {
+                });
+
+                marker.addListener("click", e => {
+                    console.log('pin', pin);
+                    const content = `
+                    <div>
+                        <h3>${pin.Name} </h3>
+                        <div class="list">Address:  ${pin['City']}, ${pin['Address']}</div>
+                        
+                    </div>`
+                    infowindow.setContent(content);
+                    infowindow.open(map, marker);
+                });
+
+                allMarkers.push(marker);
+            }
+
+            var input = document.getElementById('searchTextField');
+
+
+            var options = {
+                // types: ['(cities)'],
+                componentRestrictions: { country: "us" }
+            };
+
+
+
+            const autocomplete = new google.maps.places.Autocomplete(input, options);
+            google.maps.event.addListener(autocomplete, 'place_changed', function (e) {
+                var place = autocomplete.getPlace();
+                const loc = place.geometry.location;
+                console.log('place', loc);
+                map.setCenter(place.geometry.location);
+                
+
+                map.data.forEach(i => map.data.remove(i)) // clear prev json 
+
+                var center = [+place.geometry.location.lng(), +place.geometry.location.lat()];
+                var radius = 100;
+                var options = { steps: 50, units: 'miles', properties: { foo: 'bar' } };
+                circle = turf.circle(center, radius, options);
+
+                
+
+                map.data.addGeoJson(circle);
+
+                if (allMarkers.length > 0) {
+                    allMarkers.forEach(i => {
+                        i.setMap(null);
+                    })
+                    allMarkers.length = 0;
+                }
+
+                var bounds = new google.maps.LatLngBounds();
+                mainData
+                    .filter(i => {
+                        var pt = turf.point([+i.Longitude, +i.Latitute]);
+                        const inside = turf.booleanPointInPolygon(pt, circle);
+                        return inside;
+                    })
+                    .map(i => {
+                        addMarker(i)
+                        bounds.extend({ lng: +i.Longitude, lat: +i.Latitute });
+                    })
+                map.fitBounds(bounds);
+            });
+
+
+
+        }
+
+
+
+
+
+
+    </script>
+
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjxBU2Rmj9czK28LqDbXvQIp5ccel9iwE&callback=initMap&libraries=places,drawing,geometry&v=weekly"
+        async></script>
+</body>
+
+</html>
